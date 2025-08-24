@@ -26,7 +26,7 @@ volume_id 		        db 12h,34h,56h,78h  ;4B
 volume_label		    db 'SIMPLEOS   '	;11B
 system_id		        db 'FAT12   '		;8B
 
-%define ENDSTRING 0x00
+%define ENDSTRING 0x0D, 0x0A, 0x00
 
 start:
     call main
@@ -68,12 +68,55 @@ load_root:
     mov es, bx
     mov bx, 0x7E00 
     stc
-    int 0x13          
+    int 0x13
 
     jc load_root
-    mov si, message
-    call print
-    jmp $
+    ret
+
+; returns with di pointing to kernel first cluster
+find_kernel:
+
+    mov si, kernel_name
+    mov di, bx
+
+    call .find_loop
+    add di, 0x1A
+    ret
+
+.find_loop:
+
+    mov cl, 0x00
+    call .compare_loop
+
+    cmp ax, 0x01
+    je .found
+
+    add di, 0x20
+    jmp .find_loop
+
+.compare_loop:
+
+    mov dx, [di]
+    
+    lodsb
+    sub al, dl
+    cmp al, 0
+    jne .not_found
+
+    inc dx
+
+    inc cl
+    cmp cl, 0x08
+    jne .compare_loop
+    jmp .found
+
+.found:
+    mov ax, 0x01
+    ret
+
+.not_found:
+    mov ax, 0x00
+    ret
 
 ; prints string at SI
 print:
@@ -92,18 +135,24 @@ print:
     ret               ; loop forever
 
 main: 
-
     mov ax, 0
 	mov ds, ax
 	mov es, ax
 
+    ; sets up stack pointer
 	mov ss, ax
 	mov sp, 0x7C00
 
     call load_root
+    call find_kernel
+
+    mov si, message
+    call print
+
+    jmp $
 
 message db "Worked!", ENDSTRING
-kernel_path db "KERNEL  BIN", ENDSTRING
+kernel_name db "KERNEL  BIN", ENDSTRING
 
 times 510-($-$$) db 0
 dw 0xAA55               ; gotta end with this magic number
