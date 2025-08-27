@@ -1,3 +1,9 @@
 # build files
 build/
 build.sh
+
+# binaries
+.DS_Store
+
+# test files
+test_funcs.asm
