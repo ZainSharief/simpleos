@@ -5,5 +5,5 @@ build.sh
 # binaries
 .DS_Store
 
-# test files
-test_funcs.asm
+# temp files
+temp.asm

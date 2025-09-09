@@ -1,98 +1,81 @@
 bits 16               ; real mode
-org 0x7C00            ; load address for BIOS
-
-jmp short start  
-nop
-
-oem_identifier		    db 'MSWIN4.1'		;8B UNUSED
-bytes_per_sector	    dw 0x0200		    ;2B USED
-sectors_per_cluster	    db 0x01			    ;1B USED
-reserved_sectors	    dw 0x0001		    ;2B USED
-number_of_fats		    db 0x02			    ;1B USED
-directory_entries	    dw 0x00E0		    ;2B USED
-logical_sector_count	dw 0x0B40		    ;2B UNUSED
-media_descriptor_type	db 0xF0			    ;1B	0xF0 = 3.5inch floppy UNUSED
-sectors_per_fat		    dw 0x0009		    ;2B USED
-sectors_per_track	    dw 0x0012		    ;2B USED
-head_count		        dw 0x0002		    ;2B USED
-hidden_sector_count	    dd 0			    ;4B UNUSED
-large_sector_count 	    dd 0			    ;4B UNUSED
-
-; extended boot record
-drive_number		    db 0			    ;1B UNUSED
-			            db 0			    ;1B UNUSED
-signature		        db 0x1D			    ;1B UNUSED
-volume_id 		        db 12h,34h,56h,78h  ;4B	UNUSED
-volume_label		    db 'SIMPLEOS   '	;11B UNUSED
-system_id		        db 'FAT12   '		;8B UNUSED
+org 0x9A00            ; load address for BIOS
 
 start:
     jmp main
 
-load_root:
-
-    mov si, 0x13
-    call lba_to_chs
-
-    mov ah, 0x02 ; read operation
-    mov al, 0x0E ; read 14 sectors
-    mov dl, 0x00 ; read from floppy
-
-    ; reads root to 0x0000:0x7E00 
-    mov bx, 0x0000 
-    mov es, bx
-    mov bx, 0x7E00 
-    int 0x13
-    jc .retry
-    ret
-
-.retry:
-    mov si, root_error
-    call print
-    jmp load_root
-
-; returns with cluster pointing to kernel first cluster
-find_loader:
+; inputs: es:bx
+; outputs: [cluster] - starting cluster
+find_kernel:
 
     mov di, bx
-    call .find_loop
-    mov ax, [di+0x1A]
-    mov [cluster], ax
+    mov cx, 0xE0 ; 14 sectors
+    mov si, kernel_name
+    mov al, byte [kernel_name]
+
+    call .compare_sector
+    cmp al, 0x00
+    je .error_search
     ret
 
-.find_loop:
-
-    mov si, loader_name
-    mov cl, 0x00
+.compare_sector:
 
     push di
-    call .compare_loop
+    push cx
+    mov cx, 0x0B
+    call .compare_word
+    pop cx
     pop di
 
-    cmp ax, 0x01
-    je .found
+    cmp al, 0x01
+    je .success
 
-    add di, 0x20
-    jmp .find_loop
+    call .increment_sector
 
-.compare_loop:
-    
-    lodsb          
-    cmp al, [es:di]   
-    jne .not_found
-    inc di
-
-    inc cl
-    cmp cl, 0x0B
-    jne .compare_loop
-    jmp .found
-
-.found:
-    mov ax, 0x01
+    dec cx
+    cmp cx, 0x00 
+    jne .compare_sector
+    mov al, 0x00
     ret
 
-.not_found:
-    mov ax, 0x00
+.increment_sector:
+    mov si, kernel_name
+    mov al, byte [kernel_name]
+    add di, 0x20
+    ret
+
+.compare_word:
+    
+    cmp al, [es:di]
+    jne .failure 
+
+    call .increment_letter
+
+    dec cx
+    cmp cx, 0x00
+    jne .compare_word
+    mov al, 0x01
+    ret
+
+.increment_letter:
+    inc si
+    mov al, [si]
+    add di, 0x01
+    ret
+
+.success:
+    mov ax, [es:di+0x1A]
+    mov [cluster], ax
+    mov al, 0x01
+    ret
+
+.failure:
+    mov al, 0x00 
+    ret
+
+.error_search:
+    mov si, error_search_text
+    call print
     ret
 
 load_fat:
@@ -115,7 +98,7 @@ load_fat:
     popa
     ret
 
-load_loader:
+load_kernel:
 
     ;RootDirSectors = ( (DirectoryEntries * 32) + (BytesPerSector - 1) ) / BytesPerSector
     push ax
@@ -145,10 +128,10 @@ load_loader:
     mov dx, ax
     pop ax
 
-    mov bx, 0x0000
+    mov bx, 0x1000
     mov es, bx
     mov cx, bx
-    mov di, 0x9A00
+    mov di, 0x0000
     call .iterate_cluster
     ret
 
@@ -271,6 +254,43 @@ lba_to_chs:
     mov dh, al ; head
     ret
 
+print_num:
+    pusha                ; save registers
+
+    mov ax, si           ; move number to AX
+    mov cx, 0            ; digit count
+    mov bx, 10           ; divisor for decimal
+
+    cmp ax, 0
+    jne .convert_loop
+    mov al, '0'
+    mov ah, 0x0E
+    int 0x10
+    jmp .done
+
+.convert_loop:
+    xor dx, dx           ; clear DX for DIV
+    div bx               ; AX / 10 -> AX = quotient, DX = remainder
+    push dx              ; save remainder
+    inc cx
+    cmp ax, 0
+    jne .convert_loop
+
+.print_digits:
+    pop dx
+    add dl, '0'          ; convert 0-9 -> ASCII
+    mov ah, 0x0E
+    mov al, dl
+    int 0x10
+    loop .print_digits
+
+.done:
+    mov al, 0x00 
+    mov ah, 0x0E
+    int 0x10
+    popa
+    ret
+
 ; prints string at SI
 print:
     pusha
@@ -287,27 +307,82 @@ print:
     popa
     ret  
 
-main: 
-    mov ax, 0
-	mov ds, ax
-	mov es, ax
+enable_a20:
 
-    ; sets up stack pointer
+    push ax 
+    in al, 0x92
+    or al, 0x02
+    out 0x92, al
+    pop ax
+    ret
+
+gdt_start:
+    dq 0x0000000000000000        ; null descriptor
+
+    ; code descriptor: base=0, limit=4GB, access=0x9A, gran=0xCF
+    db 0xFF,0xFF,0x00,0x00,0x00,0x9A,0xCF,0x00
+
+    ; data descriptor: base=0, limit=4GB, access=0x92, gran=0xCF
+    db 0xFF,0xFF,0x00,0x00,0x00,0x92,0xCF,0x00
+
+gdt_end:
+
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1   ; size - 1
+    dd gdt_start                 ; base
+
+main: 
+
     mov ax, 0x9000
 	mov ss, ax
 	mov sp, 0xFFFF
 
-    call load_root
-    call find_loader  
-    call load_fat
-    call load_loader
+    xor bx, bx
+    mov es, bx
+    mov ds, bx
+    mov bx, 0x7E00
 
-    jmp 0x0000:0x9A00
+    call find_kernel  
+    call load_kernel
+
+    cli
+    call enable_a20
+    lgdt [gdt_descriptor]
+
+    mov eax, cr0
+    or  eax, 1
+    mov cr0, eax
+
+    jmp 0x08:pm_entry_32
+
+bits 32
+pm_entry_32:
+    ; set data selectors to 0x10
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    ; set up stack 
+    mov esp, 0x00090000     
+
+    ; jump to kernel physical address 
+    mov eax, 0x10000
+    jmp eax
     
-loader_name db "LOADER  BIN", 0
+kernel_name db "KERNEL  BIN", 0
 cluster	dw 0x0000
 
-root_error db "ROOT ERROR", 0
+error_search_text db "ERROR: Unable to Locate Kernel", 0
 
-times 510-($-$$) db 0
-dw 0xAA55               ; gotta end with this magic number
+; disk information
+bytes_per_sector	    dw 0x0200		    ;2B USED
+sectors_per_cluster	    db 0x01			    ;1B USED
+reserved_sectors	    dw 0x0001		    ;2B USED
+number_of_fats		    db 0x02			    ;1B USED
+directory_entries	    dw 0x00E0		    ;2B USED
+sectors_per_fat		    dw 0x0009		    ;2B USED
+sectors_per_track	    dw 0x0012		    ;2B USED
+head_count		        dw 0x0002		    ;2B USED

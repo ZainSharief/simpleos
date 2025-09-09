@@ -1,37 +1,28 @@
-bits 16
+bits 32
 org 0x10000
 
-start:
-    jmp main
-
-; prints string at SI
-print:
-    push ax
-
-.print_loop:
-    lodsb             ; byte from SI -> AL, increment SI
-    cmp al, 0         ; check if end of string
-    je .end_print
-    mov ah, 0x0E      ; tells to print character in AL
-    int 0x10          ; print interrupt
-    jmp .print_loop
-    
-.end_print:
-    pop ax
-    ret               
-
-main:
-    mov ax, 0x1000
-	mov ds, ax
-	mov es, ax
-
-    mov ax, 0x9000 
+pm_kernel_start:
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
     mov ss, ax
-    mov sp, 0xFFFF 
+    mov esp, 0x0009F000
 
-    mov si, msg
-    call print
+    mov edi, 0xB8000
+    mov esi, kernel_msg
 
-    jmp $               ; loop forever
+.print_loop32:
+    lodsb
+    cmp al, 0
+    je .done
+    mov ah, 0x07
+    stosw
+    jmp .print_loop32
 
-msg db 'Kernel Loaded!', 0
+.done:
+    hlt
+    jmp .done
+
+kernel_msg db "Kernel Loaded!", 0
