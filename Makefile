@@ -2,22 +2,22 @@ ASM        := nasm
 QEMU       := qemu-system-i386
 BUILD_DIR  := build
 SRC_DIR    := src
-IMG        := $(BUILD_DIR)/floppy.img
+IMG        := $(BUILD_DIR)/disk.img
 BOOT_BIN   := $(BUILD_DIR)/bootloader.bin
 LOADER_BIN := $(BUILD_DIR)/loader.bin
 KERNEL_BIN := $(BUILD_DIR)/kernel.bin
 
-.PHONY: all run clean bootloader loader kernel floppy_image always
+.PHONY: all run clean bootloader loader kernel disk_image always
 
 all: $(IMG)
 
 # floppy image
-floppy_image: $(IMG)
+disk_image: $(IMG)
 
 $(IMG): $(BOOT_BIN) $(LOADER_BIN) $(KERNEL_BIN) | always
-	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
+	dd if=/dev/zero of=$@ bs=1M count=32 status=none
 
-	mkfs.fat -F 12 -n "NBOS" $@
+	mkfs.fat -F 32 -n "NBOS" $@
 
 	# Write bootloader to first sector
 	dd if=$(BOOT_BIN) of=$@ conv=notrunc bs=512 count=1 status=none
@@ -46,7 +46,7 @@ $(KERNEL_BIN): $(SRC_DIR)/kernel/kernel.asm | always
 
 # running in QEMU
 run: $(IMG)
-	$(QEMU) -fda $(IMG) -monitor stdio
+	$(QEMU) -hda $(IMG) -monitor stdio
 
 # ensure build directory exists
 always:
