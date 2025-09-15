@@ -15,15 +15,16 @@ all: $(IMG)
 disk_image: $(IMG)
 
 $(IMG): $(BOOT_BIN) $(LOADER_BIN) $(KERNEL_BIN) | always
-	dd if=/dev/zero of=$@ bs=1M count=32 status=none
-
+	dd if=/dev/zero of=$@ bs=1M count=64 status=none
 	mkfs.fat -F 32 -n "NBOS" $@
 
 	# Write bootloader to first sector
 	dd if=$(BOOT_BIN) of=$@ conv=notrunc bs=512 count=1 status=none
 
+	# Write Loader at fixed LBA 2
+	dd if=$(LOADER_BIN) of=$@ conv=notrunc bs=512 seek=2 status=none
+
 	# Copy loader + kernel into image using mtools
-	mcopy -i $@ $(LOADER_BIN) ::loader.bin
 	mcopy -i $@ $(KERNEL_BIN) ::kernel.bin
 
 # bootloader
