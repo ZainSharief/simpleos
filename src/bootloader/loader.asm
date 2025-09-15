@@ -1,25 +1,51 @@
-bits 16               ; real mode
-org 0x9A00            ; load address for BIOS
+bits 16         ; real mode      
+org 0x8000
 
-jmp short start
-nop
-
-; disk information
-bytes_per_sector	    dw 0x0200		    ;2B USED
-sectors_per_cluster	    db 0x01			    ;1B USED
-reserved_sectors	    dw 0x0001		    ;2B USED
-number_of_fats		    db 0x02			    ;1B USED
-directory_entries	    dw 0x00E0		    ;2B USED
-sectors_per_fat		    dw 0x0009		    ;2B USED
-sectors_per_track	    dw 0x0012		    ;2B USED
-head_count		        dw 0x0002		    ;2B USED
-
-start:
-    jmp main
+jmp main
 
 %include 'src/bootloader/include/print.asm'
-%include 'src/bootloader/include/lba_to_chs.asm'
-%include 'src/bootloader/include/clusters.asm'
+%include 'src/bootloader/include/load_fat.asm'
+%include 'src/bootloader/include/load_root.asm'
+%include 'src/bootloader/include/find_cluster.asm'
+
+DAP:
+    db 0x10                 ; size of packet = 16
+    db 0x00                 ; reserved
+    dw 0x0000               ; [2]  number of sectors to read
+    dw 0x0000               ; [4]  offset of buffer
+    dw 0x0000               ; [6]  segment of buffer
+    dq 0x0000000000000000   ; [8]  64-bit LBA
+
+load_data:
+
+    pusha 
+    xor bx, bx
+    mov es, bx
+    mov bx, 0x7C00
+    
+    mov ax, word [es:bx+0x0B]
+    mov word [bytes_per_sector], ax
+
+    mov ax, word [es:bx+0x0E]
+    mov word [reserved_sectors], ax
+
+    mov eax, dword [es:bx+0x024]
+    mov dword [sectors_per_fat_32], eax
+
+    mov al, byte [es:bx+0x040]
+    mov byte [drive_number], al
+
+    mov al, byte [es:bx+0x10]
+    mov byte [number_of_fats], al
+
+    mov ax, word [es:bx+0x02C]
+    mov word [root_cluster], ax
+
+    mov al, byte [es:bx+0x0D]
+    mov byte [sectors_per_cluster], al
+
+    popa
+    ret
 
 enable_a20:
     push ax 
@@ -29,63 +55,48 @@ enable_a20:
     pop ax
     ret
 
-gdt_start:
-    dq 0x0000000000000000        ; null descriptor
-
-    ; code descriptor: base=0, limit=4GB, access=0x9A, gran=0xCF
-    db 0xFF,0xFF,0x00,0x00,0x00,0x9A,0xCF,0x00
-
-    ; data descriptor: base=0, limit=4GB, access=0x92, gran=0xCF
-    db 0xFF,0xFF,0x00,0x00,0x00,0x92,0xCF,0x00
-
-gdt_end:
-
-gdt_descriptor:
-    dw gdt_end - gdt_start - 1   ; size - 1
-    dd gdt_start                 ; base
-
-main: 
-    mov ax, 0x9000
+main:
+    ; sets es, ds and carry bit
+    cli
+    xor ax, ax
+    mov es, ax
+    mov ds, ax
+    
+    ; sets up stack pointer
 	mov ss, ax
-	mov sp, 0xFFFF
+	mov sp, 0x7C00
 
-    xor bx, bx
+    ; loads neccessary bpb/ebr values
+    call load_data
+
+    ; load file allocation table at 0x1000:0x0000
+    call load_fat    
+
+    ; load root directory at 0x9000:0x0000 
+    call load_root
+
+    ; locates the cluster
+    mov bx, 0x9000
     mov es, bx
-    mov ds, bx
-    mov bx, 0x7E00
+    xor bx, bx
     call find_cluster
 
-    mov bx, 0x1000
-    mov es, bx
-    mov di, 0x0000
-    call load_clusters
-
-    cli
     call enable_a20
-    lgdt [gdt_descriptor]
 
-    mov eax, cr0
-    or  eax, 1
-    mov cr0, eax
+    jmp $
 
-    jmp 0x08:pm_entry_32
-
-bits 32
-pm_entry_32:
-    ; set data selectors to 0x10
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    mov ss, ax
-
-    ; set up stack 
-    mov esp, 0x00090000     
-
-    ; jump to kernel physical address 
-    mov eax, 0x10000
-    jmp eax
-    
 cluster_name db "KERNEL  BIN", 0
 cluster	dw 0x0000
+kernel_cluster dq 0x00000000
+
+load_fat_error db 'ERROR: Failed to read FAT. Code ', 0x00
+load_root_error db 'ERROR: Failed to load Root Directory. Code ', 0x00
+end_string db 0x0D, 0x0A, 0x00
+
+bytes_per_sector        dw 0x0000
+reserved_sectors	    dw 0x0000
+sectors_per_fat_32      dd 0x00000000
+drive_number            db 0x00
+number_of_fats          db 0x00
+root_cluster            dw 0x0000
+sectors_per_cluster     db 0x00
