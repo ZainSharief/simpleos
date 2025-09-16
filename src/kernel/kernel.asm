@@ -1,5 +1,5 @@
 bits 32
-org 0x10000
+org 0x100000
 
 pm_kernel_start:
     mov ax, 0x10
