@@ -4,25 +4,25 @@
 ; outputs: bx = lba 
 cluster_to_lba:
 
-    push ax
-    push cx
+    push eax
+    push ecx
 
     ; first_data_sector = reserved_sectors + (number_of_fats * sectors_per_fat_32)
-    movzx ax, byte [number_of_fats]
-    mov ebx, [sectors_per_fat_32]
-    mul bx 
-    mov bx, [reserved_sectors]
-    add bx, ax
+    movzx eax, byte [bpb_info.number_of_fats]
+    mov ebx, [bpb_info.sectors_per_fat_32]
+    mul ebx 
+    movzx ebx, word [bpb_info.reserved_sectors]
+    add ebx, eax
 
     ; lba = first_data_sector + ((root_cluster - 2) * sectors_per_cluster)
-    mov ax, [cluster]
-    sub ax, 0x02
-    movzx cx, byte [sectors_per_cluster]
-    mul cx
-    add bx, ax
+    mov eax, [cluster]
+    sub eax, 0x02
+    movzx ecx, byte [bpb_info.sectors_per_cluster]
+    mul ecx
+    add ebx, eax
 
-    pop cx
-    pop ax
+    pop ecx
+    pop eax
     ret
 
 load_root: 
@@ -30,8 +30,8 @@ load_root:
     push ds
     pusha
 
-    mov ax, [root_cluster]
-    mov [cluster], ax
+    mov eax, [bpb_info.root_cluster]
+    mov [cluster], eax
     call cluster_to_lba
 
     mov ax, 0x01
@@ -50,8 +50,8 @@ load_root:
 
     mov bx, 0x1000
     mov ds, bx
-    mov bx, [cluster]
-    shl bx, 2
+    mov ebx, [cluster]
+    shl ebx, 2
     mov bx, [bx]
 
     call cluster_to_lba
@@ -74,7 +74,7 @@ load_root:
     push ax
     mov si, DAP        
     mov ah, 0x42       
-    mov dl, [drive_number]
+    mov dl, [bpb_info.drive_number]
     int 0x13
 
     mov dx, ax

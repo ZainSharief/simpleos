@@ -16,11 +16,11 @@ load_fat:
     
     ; maximum number of sectors can load at a time
     mov eax, 0x10000
-    movzx ebx, word [bytes_per_sector]
+    movzx ebx, word [bpb_info.bytes_per_sector]
     div ebx
 
-    mov bx, word [reserved_sectors]
-    mov ecx, dword [sectors_per_fat_32]
+    mov bx, word [bpb_info.reserved_sectors]
+    mov ecx, dword [bpb_info.sectors_per_fat_32]
 
     call .iterate_fat
     popa
@@ -38,7 +38,7 @@ load_fat:
     push ax
     mov si, DAP        
     mov ah, 0x42       
-    mov dl, [drive_number]
+    mov dl, [bpb_info.drive_number]
     int 0x13
 
     mov dx, ax

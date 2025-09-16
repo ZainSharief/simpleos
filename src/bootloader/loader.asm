@@ -3,6 +3,15 @@ org 0x8000
 
 jmp main
 
+bpb_info:
+    .bytes_per_sector        dw 0x0000
+    .sectors_per_cluster     db 0x00
+    .reserved_sectors	     dw 0x0000
+    .number_of_fats          db 0x00
+    .sectors_per_fat_32      dd 0x00000000
+    .root_cluster            dd 0x00000000
+    .drive_number            db 0x00
+
 %include 'src/bootloader/include/print.asm'
 %include 'src/bootloader/include/load_fat.asm'
 %include 'src/bootloader/include/load_root.asm'
@@ -17,38 +26,35 @@ DAP:
     dq 0x0000000000000000   ; [8]  64-bit LBA
 
 load_data:
-
     pusha 
     xor bx, bx
     mov es, bx
     mov bx, 0x7C00
-    
+
     mov ax, word [es:bx+0x0B]
-    mov word [bytes_per_sector], ax
-
-    mov ax, word [es:bx+0x0E]
-    mov word [reserved_sectors], ax
-
-    mov eax, dword [es:bx+0x024]
-    mov dword [sectors_per_fat_32], eax
-
-    mov al, byte [es:bx+0x040]
-    mov byte [drive_number], al
-
-    mov al, byte [es:bx+0x10]
-    mov byte [number_of_fats], al
-
-    mov ax, word [es:bx+0x02C]
-    mov word [root_cluster], ax
+    mov word [bpb_info.bytes_per_sector], ax
 
     mov al, byte [es:bx+0x0D]
-    mov byte [sectors_per_cluster], al
+    mov byte [bpb_info.sectors_per_cluster], al
 
+    mov ax, word [es:bx+0x0E]
+    mov word [bpb_info.reserved_sectors], ax
+
+    mov al, byte [es:bx+0x10]
+    mov byte [bpb_info.number_of_fats], al
+
+    mov eax, dword [es:bx+0x24]
+    mov dword [bpb_info.sectors_per_fat_32], eax
+
+    mov eax, dword [es:bx+0x2C]
+    mov dword [bpb_info.root_cluster], eax
+    
+    mov al, byte [es:bx+0x40]
+    mov byte [bpb_info.drive_number], al
     popa
     ret
 
 load_kernel_loader:
-
     pusha
 
     mov ax, 0x0010
@@ -66,7 +72,7 @@ load_kernel_loader:
 
     mov si, DAP
     mov ah, 0x42
-    mov dl, [drive_number]
+    mov dl, [bpb_info.drive_number]
     int 0x13
 
     popa
@@ -145,19 +151,11 @@ main:
     jmp 0x08:protected_entry
 
 cluster_name db "KERNEL  BIN", 0
-cluster	dw 0x0000
+cluster	dd 0x00000000
 
 load_fat_error db 'ERROR: Failed to read FAT. Code ', 0x00
 load_root_error db 'ERROR: Failed to load Root Directory. Code ', 0x00
 end_string db 0x0D, 0x0A, 0x00
-
-bytes_per_sector        dw 0x0000
-reserved_sectors	    dw 0x0000
-sectors_per_fat_32      dd 0x00000000
-drive_number            db 0x00
-number_of_fats          db 0x00
-root_cluster            dw 0x0000
-sectors_per_cluster     db 0x00
 
 ; protected mode entry-point.
 bits 32
@@ -174,10 +172,13 @@ protected_entry:
     mov esp, 0x90000
 
     ; call c load_kernel 
+    push bpb_info
+    push dword [cluster]
     call 0x8400
-
-    jmp $
+    
+    ; clean up the stack
+    add esp, 8
 
     ; jump to kernel
-    mov eax, 0x10000
+    mov eax, 0x100000
     jmp eax

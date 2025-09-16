@@ -55,8 +55,10 @@ find_cluster:
     ret
 
 .success:
+    movzx eax, word [es:di+0x20]
+    shl eax, 16
     mov ax, [es:di+0x1A]
-    mov [cluster], ax
+    mov [cluster], eax
     mov al, 0x01
     ret
 
