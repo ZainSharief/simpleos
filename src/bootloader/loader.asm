@@ -47,6 +47,31 @@ load_data:
     popa
     ret
 
+load_kernel_loader:
+
+    pusha
+
+    mov ax, 0x0010
+    mov di, 0x8400
+    xor bx, bx
+    mov es, bx
+    mov bx, 0x0004
+
+    mov [DAP+2], ax    
+    mov [DAP+4], di
+    mov [DAP+6], es
+    mov word [DAP+8], bx
+    mov word [DAP+10], 0x0000
+    mov dword [DAP+12], 0x00000000
+
+    mov si, DAP
+    mov ah, 0x42
+    mov dl, [drive_number]
+    int 0x13
+
+    popa
+    ret
+
 enable_a20:
     push ax 
     in al, 0x92
@@ -54,6 +79,31 @@ enable_a20:
     out 0x92, al
     pop ax
     ret
+
+gdt_start:
+    dq 0x0000000000000000
+
+gdt_code:
+    dw 0xFFFF      ; limit low
+    dw 0x0000      ; base low
+    db 0x00        ; base middle
+    db 10011010b   ; code segment, present, ring 0, executable, readable
+    db 11001111b   ; granularity: 4K, 32-bit
+    db 0x00        ; base high
+
+gdt_data:
+    dw 0xFFFF
+    dw 0x0000
+    db 0x00
+    db 10010010b   ; data segment, present, ring 0, writable
+    db 11001111b
+    db 0x00
+
+gdt_end:
+
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1
+    dd gdt_start
 
 main:
     ; sets es, ds and carry bit
@@ -81,13 +131,21 @@ main:
     xor bx, bx
     call find_cluster
 
-    call enable_a20
+    ; loads the C code to load the kernel
+    call load_kernel_loader
 
-    jmp $
+    call enable_a20
+    lgdt [gdt_descriptor]
+
+    ; enable protected mode
+    mov eax, cr0
+    or  eax, 1
+    mov cr0, eax
+
+    jmp 0x08:protected_entry
 
 cluster_name db "KERNEL  BIN", 0
 cluster	dw 0x0000
-kernel_cluster dq 0x00000000
 
 load_fat_error db 'ERROR: Failed to read FAT. Code ', 0x00
 load_root_error db 'ERROR: Failed to load Root Directory. Code ', 0x00
@@ -100,3 +158,26 @@ drive_number            db 0x00
 number_of_fats          db 0x00
 root_cluster            dw 0x0000
 sectors_per_cluster     db 0x00
+
+; protected mode entry-point.
+bits 32
+protected_entry:
+    ; set data selectors to 0x10
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    ; set up stack 
+    mov ss, ax
+    mov esp, 0x90000
+
+    ; call c load_kernel 
+    call 0x8400
+
+    jmp $
+
+    ; jump to kernel
+    mov eax, 0x10000
+    jmp eax
