@@ -1,4 +1,4 @@
-; src/bootloader/include/load_root.asm
+; include/bootloader/load_root.asm
 
 ; input: [cluster]
 ; outputs: bx = lba 

@@ -12,10 +12,10 @@ bpb_info:
     .root_cluster            dd 0x00000000
     .drive_number            db 0x00
 
-%include 'src/bootloader/include/print.asm'
-%include 'src/bootloader/include/load_fat.asm'
-%include 'src/bootloader/include/load_root.asm'
-%include 'src/bootloader/include/find_cluster.asm'
+%include 'include/bootloader/print.asm'
+%include 'include/bootloader/load_fat.asm'
+%include 'include/bootloader/load_root.asm'
+%include 'include/bootloader/find_cluster.asm'
 
 DAP:
     db 0x10                 ; size of packet = 16

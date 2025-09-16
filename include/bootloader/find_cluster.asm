@@ -1,4 +1,4 @@
-; src/bootloader/include/find_cluster.asm
+; include/bootloader/find_cluster.asm
 
 ; inputs: es:bx (start of root), cluster_name (pointer to file name)
 ; outputs: [cluster] - starting cluster

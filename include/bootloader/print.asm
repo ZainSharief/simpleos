@@ -1,4 +1,4 @@
-; src/bootloader/include/print.asm
+; include/bootloader/print.asm
 
 ; inputs: si (pointer to first letter)
 ; outputs: BIOS print 

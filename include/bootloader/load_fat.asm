@@ -1,4 +1,4 @@
-; src/bootloader/include/load_fat.asm
+; include/bootloader/load_fat.asm
 
 ; inputs: none
 ; outputs: fat table loaded at 0x1000:0x0000

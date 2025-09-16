@@ -39,7 +39,7 @@ file_system_type        db 'FAT32   '
 start:
     jmp main
 
-%include 'src/bootloader/include/print.asm'
+%include 'include/bootloader/print.asm'
 
 DAP:
     db 0x10                 ; size of packet = 16
