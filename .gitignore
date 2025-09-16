@@ -1,6 +1,5 @@
 # build files
 build/
-build.sh
 
 # binaries
 .DS_Store
