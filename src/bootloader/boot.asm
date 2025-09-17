@@ -68,14 +68,6 @@ load_stage_2:
     call print
     jmp load_stage_2
 
-cls:
-	pusha
-	mov al, 0x03
-	mov ah, 0x00
-	int 0x10
-	popa
-	ret
-
 main: 
     ; sets es, ds and carry bit
     xor ax, ax
@@ -89,9 +81,6 @@ main:
 
     ; updates the current drive
     mov [drive_number], dl
-
-    ; clears the screen
-    call cls
 
     ; loads and jumps to bootloader stage 2
     call load_stage_2

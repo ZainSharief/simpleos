@@ -13,6 +13,7 @@ bpb_info:
     .drive_number            db 0x00
 
 %include 'include/bootloader/print.asm'
+%include 'include/bootloader/extended_read.asm'
 %include 'include/bootloader/load_fat.asm'
 %include 'include/bootloader/load_root.asm'
 %include 'include/bootloader/find_cluster.asm'
@@ -27,55 +28,41 @@ DAP:
 
 load_data:
     pusha 
-    xor bx, bx
-    mov es, bx
-    mov bx, 0x7C00
-
-    mov ax, word [es:bx+0x0B]
+    mov ax, word [es:di+0x0B]
     mov word [bpb_info.bytes_per_sector], ax
 
-    mov al, byte [es:bx+0x0D]
+    mov al, byte [es:di+0x0D]
     mov byte [bpb_info.sectors_per_cluster], al
 
-    mov ax, word [es:bx+0x0E]
+    mov ax, word [es:di+0x0E]
     mov word [bpb_info.reserved_sectors], ax
 
-    mov al, byte [es:bx+0x10]
+    mov al, byte [es:di+0x10]
     mov byte [bpb_info.number_of_fats], al
 
-    mov eax, dword [es:bx+0x24]
+    mov eax, dword [es:di+0x24]
     mov dword [bpb_info.sectors_per_fat_32], eax
 
-    mov eax, dword [es:bx+0x2C]
+    mov eax, dword [es:di+0x2C]
     mov dword [bpb_info.root_cluster], eax
     
-    mov al, byte [es:bx+0x40]
+    mov al, byte [es:di+0x40]
     mov byte [bpb_info.drive_number], al
     popa
     ret
 
 load_kernel_loader:
-    pusha
-
-    mov ax, 0x0010
-    mov di, 0x8400
-    xor bx, bx
-    mov es, bx
-    mov bx, 0x0004
-
-    mov [DAP+2], ax    
-    mov [DAP+4], di
-    mov [DAP+6], es
-    mov word [DAP+8], bx
+    mov word [DAP+2], 0x0010    
+    mov word [DAP+4], 0x8400
+    mov word [DAP+6], 0x0000
+    mov word [DAP+8], 0x0004
     mov word [DAP+10], 0x0000
     mov dword [DAP+12], 0x00000000
 
-    mov si, DAP
-    mov ah, 0x42
-    mov dl, [bpb_info.drive_number]
-    int 0x13
-
-    popa
+    push bx
+    mov bx, load_kernel_loader_error
+    call extended_read
+    pop bx    
     ret
 
 enable_a20:
@@ -111,6 +98,14 @@ gdt_descriptor:
     dw gdt_end - gdt_start - 1
     dd gdt_start
 
+cls:
+	pusha
+	mov al, 0x03
+	mov ah, 0x00
+	int 0x10
+	popa
+	ret
+
 main:
     ; sets es, ds and carry bit
     cli
@@ -123,22 +118,34 @@ main:
 	mov sp, 0x7C00
 
     ; loads neccessary bpb/ebr values
+    xor di, di
+    mov es, di
+    mov di, 0x7C00
     call load_data
 
-    ; load file allocation table at 0x1000:0x0000
+    ; load file allocation table at 0x1000:0x0000 (note: change address -> change in load_root)
+    mov di, 0x1000
+    mov es, di
+    xor di, di
     call load_fat    
 
     ; load root directory at 0x9000:0x0000 
+    mov di, 0x9000
+    mov es, di
+    xor di, di
     call load_root
 
     ; locates the cluster
-    mov bx, 0x9000
-    mov es, bx
-    xor bx, bx
+    mov di, 0x9000
+    mov es, di
+    xor di, di
     call find_cluster
 
     ; loads the C code to load the kernel
     call load_kernel_loader
+
+    ; clears the screen
+    call cls
 
     call enable_a20
     lgdt [gdt_descriptor]
@@ -155,6 +162,7 @@ cluster	dd 0x00000000
 
 load_fat_error db 'ERROR: Failed to read FAT. Code ', 0x00
 load_root_error db 'ERROR: Failed to load Root Directory. Code ', 0x00
+load_kernel_loader_error db 'ERROR: Failed to load Kernel Loader', 0x00
 end_string db 0x0D, 0x0A, 0x00
 
 ; protected mode entry-point.
@@ -172,12 +180,13 @@ protected_entry:
     mov esp, 0x90000
 
     ; call c load_kernel 
-    push bpb_info
-    push dword [cluster]
+    mov eax, bpb_info
+    push eax
+    mov eax, dword [cluster]
+    push eax
     call 0x8400
-    
-    ; clean up the stack
-    add esp, 8
+    pop eax
+    pop eax
 
     ; jump to kernel
     mov eax, 0x100000
