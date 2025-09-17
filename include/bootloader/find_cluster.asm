@@ -1,11 +1,10 @@
 ; include/bootloader/find_cluster.asm
 
-; inputs: es:bx (start of root), cluster_name (pointer to file name)
+; inputs: es:di (start of root), cluster_name (pointer to file name)
 ; outputs: [cluster] - starting cluster
 ; Requirements: 'print' function
 find_cluster:
 
-    mov di, bx
     mov si, cluster_name
     mov al, byte [cluster_name]
 
@@ -55,7 +54,7 @@ find_cluster:
     ret
 
 .success:
-    movzx eax, word [es:di+0x20]
+    movzx eax, word [es:di+0x14]
     shl eax, 16
     mov ax, [es:di+0x1A]
     mov [cluster], eax
