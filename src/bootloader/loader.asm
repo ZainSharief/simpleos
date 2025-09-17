@@ -14,7 +14,7 @@ bpb_info:
 
 %include 'include/bootloader/print.asm'
 %include 'include/bootloader/extended_read.asm'
-%include 'include/bootloader/load_fat.asm'
+%include 'include/bootloader/load_fat_cluster.asm'
 %include 'include/bootloader/load_root.asm'
 %include 'include/bootloader/find_cluster.asm'
 
@@ -122,12 +122,6 @@ main:
     mov es, di
     mov di, 0x7C00
     call load_data
-
-    ; load file allocation table at 0x1000:0x0000 (note: change address -> change in load_root)
-    mov di, 0x1000
-    mov es, di
-    xor di, di
-    call load_fat    
 
     ; load root directory at 0x9000:0x0000 
     mov di, 0x9000

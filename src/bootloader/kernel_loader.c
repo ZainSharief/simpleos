@@ -39,7 +39,8 @@ void disk_read(unsigned int lba, unsigned char sector_count, unsigned short* buf
 __attribute__((section(".text.load_kernel")))
 void load_kernel(unsigned int cluster, bpb_info* bpb)
 {
-    unsigned short buffer[256];
+    unsigned int buffer_size = (bpb->bytes_per_sector / 2) * bpb->sectors_per_cluster;
+    unsigned short buffer[buffer_size];
 
     // checking the disk exists
     int success = disk_identify(buffer);
@@ -50,7 +51,6 @@ void load_kernel(unsigned int cluster, bpb_info* bpb)
     }
 
     unsigned int lba; 
-    unsigned int* fat = (unsigned int*)0x10000;
     unsigned short* kernel_ptr = (unsigned short*)0x100000;
     while (cluster < 0x0FFFFFF8) 
     {
@@ -63,8 +63,12 @@ void load_kernel(unsigned int cluster, bpb_info* bpb)
             *kernel_ptr++ = buffer[i];
         }
 
-        // following fat chain
-        cluster = fat[cluster];
+        unsigned int fat_offset = cluster * 4;
+        unsigned int fat_sector = bpb->reserved_sectors + (fat_offset / bpb->bytes_per_sector);
+        unsigned int fat_entry_offset = fat_offset % bpb->bytes_per_sector;
+        disk_read(fat_sector, 1, buffer);
+
+        cluster = *(unsigned int*)((char*)buffer + fat_entry_offset) & 0x0FFFFFFF;
     }
     
     return;

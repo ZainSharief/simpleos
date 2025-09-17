@@ -6,7 +6,6 @@ load_root:
     pusha
     mov eax, [bpb_info.root_cluster]
     mov [cluster], eax
-    call cluster_to_lba
     mov ax, 0x01
     call .iterate_cluster
     popa
@@ -14,25 +13,22 @@ load_root:
     
 .iterate_cluster:
 
+    call cluster_to_lba
     call .read_memory
 
-    push ds
-    mov bx, 0x1000 ; fat address
-    mov ds, bx
+    mov ax, di 
+    add ax, [bpb_info.bytes_per_sector]
+    mov di, ax
 
-    mov ebx, [cluster]
-    shl ebx, 2
-    mov bx, [ds:bx]
-    call cluster_to_lba
-    mov ecx, dword [ds:bx]
-    pop ds
+    call load_fat_cluster
 
-    cmp ecx, 0x0FFFFFEF
-    jle .iterate_cluster
+    mov eax, [cluster]
+    cmp eax, 0x0FFFFFF8
+    jl .iterate_cluster
     ret
 
 .read_memory:
-    mov word [DAP+2], ax
+    mov word [DAP+2], 0x0001
     mov word [DAP+4], di
     mov word [DAP+6], es
     mov word [DAP+8], bx
