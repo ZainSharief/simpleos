@@ -5,15 +5,20 @@ SRC_DIR    := src
 IMG        := $(BUILD_DIR)/disk.img
 BOOT_BIN   := $(BUILD_DIR)/bootloader.bin
 LOADER_BIN := $(BUILD_DIR)/loader.bin
-KERNEL_BIN := $(BUILD_DIR)/kernel.bin
+
 KERNEL_LOADER_O := $(BUILD_DIR)/kernel_loader.o
 KERNEL_LOADER_BIN := $(BUILD_DIR)/kernel_loader.bin
+KERNEL_LOADER_LINKER := $(SRC_DIR)/bootloader/linker.ld
+
+KERNEL_O := $(BUILD_DIR)/kernel.o
+KERNEL_BIN := $(BUILD_DIR)/kernel.bin
+KERNEL_LINKER := $(SRC_DIR)/kernel/linker.ld
 
 CROSS   := ~/opt/cross/bin/i686-elf
 CC      := $(CROSS)-gcc
 LD      := $(CROSS)-ld
 CFLAGS  := -ffreestanding -O2 -Wall -Wextra
-LDFLAGS := -T linker.ld -nostdlib
+LDFLAGS := -nostdlib
 
 .PHONY: all run clean bootloader loader kernel disk_image always
 
@@ -55,13 +60,14 @@ kernel_loader: $(KERNEL_LOADER_BIN)
 
 $(KERNEL_LOADER_BIN): $(SRC_DIR)/bootloader/kernel_loader.c | always
 	$(CC) $(CFLAGS) -c $< -o $(KERNEL_LOADER_O)
-	$(LD) $(LDFLAGS) -o $@ $(KERNEL_LOADER_O)
+	$(LD) -T $(KERNEL_LOADER_LINKER) $(LDFLAGS) -o $@ $(KERNEL_LOADER_O)
 
 # kernel.asm
 kernel: $(KERNEL_BIN)
 
-$(KERNEL_BIN): $(SRC_DIR)/kernel/kernel.asm | always
-	$(ASM) $< -f bin -o $@
+$(KERNEL_BIN): $(SRC_DIR)/kernel/kernel.c | always
+	$(CC) $(CFLAGS) -c $< -o $(KERNEL_O)
+	$(LD) -T $(KERNEL_LINKER) $(LDFLAGS) -o $@ $(KERNEL_O)
 
 # running in QEMU
 run: $(IMG)

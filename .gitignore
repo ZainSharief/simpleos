@@ -4,5 +4,8 @@ build/
 # binaries
 .DS_Store
 
+# vscode 
+.vscode
+
 # temp files
 temp.asm
