@@ -1,4 +1,4 @@
-; include/bootloader/load_fat_cluster.asm
+; src/bootloader/load_fat_cluster.asm
 
 ; inputs: es:di, cluster
 ; outputs: fat table loaded at 0x1000:0x0000

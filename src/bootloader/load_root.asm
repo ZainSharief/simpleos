@@ -1,4 +1,4 @@
-; include/bootloader/load_root.asm
+; src/bootloader/load_root.asm
 
 ; inputs: es:di (where to load root), root_cluster
 ; outputs: 

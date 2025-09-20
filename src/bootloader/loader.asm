@@ -14,9 +14,9 @@ bpb_info:
 
 %include 'include/bootloader/print.asm'
 %include 'include/bootloader/extended_read.asm'
-%include 'include/bootloader/load_fat_cluster.asm'
-%include 'include/bootloader/load_root.asm'
-%include 'include/bootloader/find_cluster.asm'
+%include 'src/bootloader/load_fat_cluster.asm'
+%include 'src/bootloader/load_root.asm'
+%include 'src/bootloader/find_cluster.asm'
 
 DAP:
     db 0x10                 ; size of packet = 16
