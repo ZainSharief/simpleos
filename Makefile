@@ -1,3 +1,5 @@
+PROJECT_ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
 ASM        := nasm
 QEMU       := qemu-system-i386
 BUILD_DIR  := build
@@ -17,7 +19,7 @@ KERNEL_LINKER := $(SRC_DIR)/kernel/linker.ld
 CROSS   := ~/opt/cross/bin/i686-elf
 CC      := $(CROSS)-gcc
 LD      := $(CROSS)-ld
-CFLAGS  := -ffreestanding -O2 -Wall -Wextra
+CFLAGS  := -ffreestanding -O2 -Wall -Wextra -I$(PROJECT_ROOT)
 LDFLAGS := -nostdlib
 
 .PHONY: all run clean bootloader loader kernel disk_image always
