@@ -173,15 +173,37 @@ protected_entry:
     mov ss, ax
     mov esp, 0x90000
 
-    ; call c load_kernel 
-    mov eax, bpb_info
-    push eax
-    mov eax, dword [cluster]
-    push eax
+    ; call c load_kernel
+    push kernel_size
+    push bpb_info
+    push dword [cluster]
     call 0x8400
+    mov ebx, eax ; returns address of paging_init
+    pop eax
     pop eax
     pop eax
 
+    ; setup paging
+    push dword [kernel_size]
+    push 0xC0000000
+    push 0x00100000
+    call ebx
+    mov ebx, eax ; returns address of page_directory
+    pop eax 
+    pop eax
+    pop eax
+
+    mov cr3, ebx ; set cr3 = address of page_directory
+
+    ; enable paging
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+
+    ; setup stack for paged 
+    mov esp, 0x90000
+
     ; jump to kernel
-    mov eax, 0x100000
-    jmp eax
+    jmp 0x08:0xC0000000
+
+kernel_size dd 0

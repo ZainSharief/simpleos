@@ -2,6 +2,9 @@
  * kernel_loader.c
  */
 
+#include "include/kernel/vga_print.c"
+#include "src/bootloader/paging.c"
+
 typedef struct __attribute__((packed)) {
     unsigned short bytes_per_sector;
     unsigned char  sectors_per_cluster;
@@ -37,10 +40,11 @@ int disk_identify(unsigned short *buffer);
 void disk_read(unsigned int lba, unsigned char sector_count, unsigned short* buffer);
 
 __attribute__((section(".text.load_kernel")))
-void load_kernel(unsigned int cluster, bpb_info* bpb)
+unsigned int load_kernel(unsigned int cluster, bpb_info* bpb, unsigned int* kernel_size)
 {
     unsigned int buffer_size = (bpb->bytes_per_sector / 2) * bpb->sectors_per_cluster;
     unsigned short buffer[buffer_size];
+    *kernel_size = 0;
 
     // checking the disk exists
     int success = disk_identify(buffer);
@@ -67,22 +71,12 @@ void load_kernel(unsigned int cluster, bpb_info* bpb)
         unsigned int fat_sector = bpb->reserved_sectors + (fat_offset / bpb->bytes_per_sector);
         unsigned int fat_entry_offset = fat_offset % bpb->bytes_per_sector;
         disk_read(fat_sector, 1, buffer);
+        *kernel_size += (bpb->bytes_per_sector * bpb->sectors_per_cluster);
 
         cluster = *(unsigned int*)((char*)buffer + fat_entry_offset) & 0x0FFFFFFF;
     }
     
-    return;
-}
-
-void vga_print(volatile const char* string, int line, int character)
-{
-    // 80x25 vga buffer
-	volatile char* vga_buffer = (volatile char*)0xB8000 + line*80*2 + character*2;
-	while (*string) 
-    {
-		*vga_buffer++ = *string++;
-		*vga_buffer++ = 0x07;
-	}
+    return (unsigned int)&paging_init;  // returns pointer to paging function
 }
 
 int disk_identify(unsigned short *buffer)
