@@ -1,5 +1,7 @@
 // src/kernel/gdt_init.c
 
+#include "include/kernel/vga_print.c"
+
 typedef struct __attribute__((packed)) {
     unsigned short limit_low;      // Bits 0-15 of segment limit
     unsigned short base_low;       // Bits 0-15 of base address
@@ -62,7 +64,9 @@ void gdt_init()
         "mov %%ax, %%es\n"    
         "mov %%ax, %%fs\n"    
         "mov %%ax, %%gs\n"    
-        "mov %%ax, %%ss\n"    
+        "mov %%ax, %%ss\n"  
+        "mov $0x28, %%ax\n" 
+        "ltr %%ax\n"          // enable TSS
         : : "r"(&gp)
     );
 }
