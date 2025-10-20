@@ -19,18 +19,17 @@ unsigned int paging_init(unsigned int kernel_phys_base, unsigned int kernel_virt
 {
     unsigned int kernel_end = kernel_phys_base + kernel_size;
     unsigned int kernel_page_boundary = (kernel_end + 0x0FFF) & ~0x0FFF; // aligns to next page boundary ie. 0x1234 -> 0x2000
-    unsigned int kernel_pages = (kernel_size + 4095) / 4096; // round up the number of 4kb pages
 
     page_directory* page_directory = create_page_directory(kernel_page_boundary);
 
     // identity map the first mb contains useful info such as VGA buffer and this code (quite important)
-    page_table* first_page_table = (page_table*)kernel_page_boundary+0x1000;
+    page_table* first_page_table = (page_table*)(kernel_page_boundary+0x1000);
     for (int i = 0; i < 256; i++)
         first_page_table->entries[i] = (unsigned int)((i * 0x1000) | 0x03); 
     page_directory->tables[0] = (page_table*)((unsigned int)first_page_table | 0x03);
 
-    // page map the kernel
-    for (unsigned int i = 0; i < kernel_pages; i++)
+    // page map 4mb for the kernel
+    for (unsigned int i = 0; i < 1024; i++)
         map_page(page_directory, kernel_virt_base + i * 0x1000, kernel_phys_base + i * 0x1000, 0x3, kernel_page_boundary+0x2000); 
         
     return (unsigned int)page_directory;
